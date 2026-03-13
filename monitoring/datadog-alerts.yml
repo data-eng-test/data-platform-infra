@@ -1,0 +1,41 @@
+# monitoring/datadog-alerts.yml
+# Datadog alert definitions for the data platform.
+# Applied via Terraform datadog provider (see monitoring/datadog.tf)
+# Owner: Alex Rivera (alex@company.com)
+
+alerts:
+  - name: "FinOps Pipeline SLA Miss"
+    message: |
+      The finops_daily Airflow DAG did not complete by 07:30 UTC.
+      Finance dashboard data may be stale.
+      Runbook: https://github.com/data-eng-test/data-platform-infra/blob/main/runbooks/bigquery-slot-resize.md
+      @pagerduty-data-oncall
+    query: "events('sources:airflow dag_id:finops_daily status:failed').rollup('count').last('1h') > 0"
+    type: event_alert
+    priority: high
+    notify:
+      - "@slack-data-alerts"
+      - "@pagerduty-data-oncall"
+
+  - name: "BigQuery Slot Utilisation > 90%"
+    message: |
+      BigQuery slot utilisation is above 90% in the finops reservation.
+      Queries may be queuing. Consider increasing slots — see runbook.
+      @slack-data-alerts
+    query: "avg(last_15m):avg:gcp.bigquery.reservation.slot_utilization{reservation:finops-prod} > 0.9"
+    type: metric_alert
+    priority: medium
+    notify:
+      - "@slack-data-alerts"
+
+  - name: "Composer Worker OOMKilled"
+    message: |
+      A Cloud Composer worker pod was OOMKilled.
+      Tasks may have failed. Check Airflow UI for failed task instances.
+      @slack-data-alerts @pagerduty-data-oncall
+    query: "events('sources:kubernetes reason:OOMKilled namespace:composer').rollup('count').last('10m') > 0"
+    type: event_alert
+    priority: high
+    notify:
+      - "@slack-data-alerts"
+      - "@pagerduty-data-oncall"
